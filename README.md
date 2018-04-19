@@ -1,2 +1,2 @@
 # CNN-code
-使用keras tensorflow构建CNN(googleNet、squeezeNet、mobileNet)
+使用keras tensorflow 构建CNN(Inception、squeezeNet、mobileNet)
