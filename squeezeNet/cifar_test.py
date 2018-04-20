@@ -13,7 +13,9 @@ from keras.callbacks import TensorBoard
 import numpy as np
 
 import squeezeNet
-import loadData
+import __init__
+
+from dataset import loadData
 
 def train():
 	imodel = squeezeNet.SqueezeNet(input_shape=(32,32,3),classes=10)
@@ -22,8 +24,8 @@ def train():
 	model = Model(inputs=[input_img], outputs = ouput_img)
 	model.summary()
 
-	adam = Adam(lr=0.0001)
-	sgd = SGD(lr=0.0001, momentum=0.9)
+	adam = Adam(lr=0.001)
+	sgd = SGD(lr=0.001, momentum=0.9)
 	model.compile(optimizer=adam, loss='categorical_crossentropy',metrics=['accuracy'])
 
 	cifar10_dir = 'C:/Users/Spencer/Documents/GitHub/CNN-code/dataset/cifar-10-batches-py'
@@ -32,8 +34,8 @@ def train():
 	y_train = to_categorical(y_train, num_classes=None)
 	y_test = to_categorical(y_test, num_classes=None)
 
-	model.fit(X_train, y_train, epochs=50, batch_size=200, validation_data=(X_test,y_test), callbacks=[TensorBoard(log_dir='tmp/log')])
-	model.save("model_all.h5")
+	model.fit(X_train, y_train, epochs=300, batch_size=128, validation_data=(X_test,y_test), callbacks=[TensorBoard(log_dir='tmp/log1')])
+	model.save("model_300_0001.h5")
 
 	# tensorboard --logdir=tmp/log --host 0.0.0.0 -- port 8888
 

@@ -3,3 +3,5 @@ dataset/cifar-10-batches-py/*
 *.h5
 squeezeNet/tmp/*
 *.pyc
+*.bmp
+*.dat
