@@ -6,7 +6,6 @@ from keras.layers.pooling import MaxPooling2D, AveragePooling2D
 from keras.optimizers import Adam, RMSprop, SGD
 from keras.regularizers import l2
 from keras import backend as K
-from keras.utils.np_utils import to_categorical
 from keras.models import load_model
 from keras.callbacks import TensorBoard
 

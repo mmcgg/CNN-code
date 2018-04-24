@@ -34,7 +34,7 @@ def train():
 	y_train = to_categorical(y_train, num_classes=None)
 	y_test = to_categorical(y_test, num_classes=None)
 
-	model.fit(X_train, y_train, epochs=300, batch_size=128, validation_data=(X_test,y_test), callbacks=[TensorBoard(log_dir='tmp/log1')])
+	model.fit(X_train, y_train, epochs=300, batch_size=128, validation_data=(X_test,y_test), callbacks=[TensorBoard(log_dir='tmp/log3')])
 	model.save("model_300_0001.h5")
 
 	# tensorboard --logdir=tmp/log --host 0.0.0.0 -- port 8888

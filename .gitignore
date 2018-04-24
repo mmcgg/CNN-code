@@ -5,3 +5,4 @@ squeezeNet/tmp/*
 *.pyc
 *.bmp
 *.dat
+*.jpg
