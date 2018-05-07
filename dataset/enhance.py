@@ -19,16 +19,16 @@ def getAllFile(path):
 	return filepathlist
 
 datagen = ImageDataGenerator(
-	rotation_range=0.2,
-	width_shift_range=0.1,
-	height_shift_range=0.1,
-	rescale=1/255,
-	shear_range=0.2,
-	zoom_range=0.2,
-	horizontal_flip=True,
+	rotation_range = 0.2,
+	width_shift_range = 0.05,
+	height_shift_range = 0.05,
+	rescale = 1/255,
+	shear_range = 0.2,
+	zoom_range = 0.1,
+	channel_shift_range = 10,
 	fill_mode='nearest')
 
-for paths in getAllFile('nlfw/test/'):
+for paths in getAllFile('nlfw/train/'):
 	print(paths)
 	img = load_img(paths)
 	x = img_to_array(img)

@@ -4,8 +4,24 @@ import numpy as np
 import glob
 import cv2
 from PIL import Image
+import pandas as pd
 
 face_patterns = cv2.CascadeClassifier('haarcascade_frontalface_alt2.xml')
+
+def getAllPath(path):
+	typelist = []
+	filepathlist = []
+	filelist = glob.glob(path + "*")
+	for i, nowpath in enumerate(filelist):
+		allFilePath = glob.glob(nowpath + "/*.bmp")
+		for item in allFilePath:
+			typelist.append(i)
+			filepathlist.append(item)
+
+	res = pd.DataFrame()
+	res['type'] = typelist
+	res['path'] = filepathlist
+	return res
 
 def getAllFile(path):
 	filepathlist = []

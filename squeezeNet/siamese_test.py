@@ -12,6 +12,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 import numpy as np
 import __init__
 from dataset import loadPairSample
+from dataset import loadData
 
 def euclidean_distance(inputs):
     u, v = inputs
@@ -99,14 +100,18 @@ def train():
     model = Model(inputs=[input_img1, input_img2], outputs = lambda_merge)
     model.summary()
 
-    adam = Adam(lr=0.0005)
+    adam = Adam(lr=0.001)
     sgd = SGD(lr=0.001, momentum=0.9)
     model.compile(optimizer=adam, loss=contrastive_loss)
 
-    gen = loadPairSample.generator(9)
-    val_gen = loadPairSample.val_generator(3)
+    # X_train, y_train, X_test, y_test = loadData.load_faceData('C:/Users/Spencer/Documents/GitHub/CNN-code/dataset/')
+    # model.fit(X_train, y_train, epochs=300, batch_size=128, validation_data=(X_test,y_test), callbacks=[TensorBoard(log_dir='tmp/log12')])
 
-    outputs = model.fit_generator(gen, steps_per_epoch=30, epochs=500, validation_data = val_gen, validation_steps=20, callbacks=[TensorBoard(log_dir='tmp/log9')])
+    gen = loadPairSample.generator(10)
+    val_gen = loadPairSample.val_generator(4)
+
+    outputs = model.fit_generator(gen, steps_per_epoch=30, epochs=500, validation_data = val_gen, validation_steps=10, callbacks=[TensorBoard(log_dir='tmp/log11')])
+
     model.save("model_faceId_newdata.h5")
 
 if __name__ == '__main__':

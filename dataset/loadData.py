@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import pickle
 
 def load_CIFAR_batch(filename):
     """ 载入cifar数据集的一个batch """
@@ -24,14 +25,24 @@ def load_CIFAR10(ROOT):
     Xtr = np.concatenate(xs) #使变成行向量,最终Xtr的尺寸为(50000,32,32,3)
     Ytr = np.concatenate(ys)
     for i in range(len(Xtr)):
-        Xtr[i] = (Xtr[i] - np.mean(Xtr[i])) / np.max(Xtr[i])
+        Xtr[i] = (Xtr[i] - np.mean(Xtr[i])) / np.std(Xtr[i])
     del X, Y
     Xte, Yte = load_CIFAR_batch(os.path.join(ROOT, 'test_batch'))
     for i in range(len(Xte)):
-        Xte[i] = (Xte[i] - np.mean(Xte[i])) / np.max(Xte[i])
+        Xte[i] = (Xte[i] - np.mean(Xte[i])) / np.std(Xte[i])
     return Xtr, Ytr, Xte, Yte
+
+def load_faceData(ROOT):
+    Xtr = pickle.load(open(ROOT + 'trainX.dat','rb'))
+    Ytr = pickle.load(open(ROOT + 'trainY.dat','rb'))
+    Xte = pickle.load(open(ROOT + 'testX.dat','rb'))
+    Yte = pickle.load(open(ROOT + 'testY.dat','rb'))
+    return Xtr, Ytr, Xte, Yte
+
 
 if __name__ == '__main__':
     cifar10_dir = 'C:/Users/Spencer/Documents/GitHub/CNN-code/dataset/cifar-10-batches-py'
-    X_train, y_train, X_test, y_test = load_CIFAR10(cifar10_dir)
-    print(X_train[1])
+    #X_train, y_train, X_test, y_test = load_CIFAR10(cifar10_dir)
+    #print(X_train[1])
+    X_train, y_train, X_test, y_test = load_faceData('C:/Users/Spencer/Documents/GitHub/CNN-code/dataset/')
+    print(X_train[0][0].shape)
