@@ -41,4 +41,10 @@ def load_data(dataset_path):
     return rval
 
 if __name__ == '__main__':
-	print(load_data('olivettifaces.gif'))
+    datasets = load_data('olivettifaces.gif')
+    train_set_x, train_set_y = datasets[0]
+    valid_set_x, valid_set_y = datasets[1]
+    test_set_x, test_set_y = datasets[2]
+
+    print(train_set_x[1].shape)
+    print(train_set_y[:3])
