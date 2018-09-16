@@ -6,9 +6,9 @@ import numpy as np
 import math
 import cv2
 from itertools import repeat
-from helper import nms, adjust_input, generate_bbox, detect_first_stage
+from model import DetectorMtcnn
 
-class MtcnnDetector(object):
+class MtcnnDetector(DetectorMtcnn):
     """
         多联级任务人脸检测及对齐
         see https://github.com/kpzhang93/MTCNN_face_detection_alignment
@@ -18,7 +18,6 @@ class MtcnnDetector(object):
                  minsize = 20,
                  threshold = [0.6, 0.7, 0.8],
                  factor = 0.709,
-                 num_worker = 1,
                  ctx=mx.cpu()):
         """
             Initialize the detector
@@ -31,8 +30,6 @@ class MtcnnDetector(object):
                 factor: 图像金字塔的scale
 
         """
-        self.num_worker = num_worker
-        self.accurate_landmark = accurate_landmark
 
         # 加载四个模型
         models = ['det1', 'det2', 'det3','det4']
@@ -137,6 +134,88 @@ class MtcnnDetector(object):
 
         return return_list
 
+    def detect_first_stage(self, img, net, scale, threshold):
+        """
+            运行 PNet for first stage
+        
+        Parameters:
+        ----------
+            img: numpy array, bgr order
+                input image
+            scale: float number
+                input image 缩放尺度 
+            net: PNet
+                worker
+        Returns:
+        -------
+            total_boxes : bboxes
+        """
+
+        #图片进行缩放
+        height, width, _ = img.shape
+        hs = int(math.ceil(height * scale))
+        ws = int(math.ceil(width * scale))
+        im_data = cv2.resize(img, (ws,hs))
+        
+        #调整图片输入顺序
+        input_buf = self.adjust_input(im_data)
+        #预测
+        output = net.predict(input_buf)
+        # output[0] box
+        # output[1] face,output[1][0,1,:,:] 是脸的可能性
+
+        #将现在得到的位置转换为原来尺寸上的位置，前4列为原来尺寸的位置，5为分数，后4列为对应位置上的数值
+        boxes = self.generate_bbox(output[1][0,1,:,:], output[0], scale, threshold)
+
+        if boxes.size == 0:
+            return None
+
+        # 对位置进行去重叠
+        pick = self.nms(boxes[:,0:5], 0.5, mode='Union')
+        boxes = boxes[pick]
+
+        return boxes
+
+    def generate_bbox(self, map, reg, scale, threshold):
+        """
+            generate bbox from feature map
+        Parameters:
+        ----------
+            map: numpy array , n x m x 1
+                detect score for each position
+            reg: numpy array , n x m x 4
+                bbox
+            scale: float number
+                scale of this detection
+            threshold: float number
+                detect threshold
+        Returns:
+        -------
+            bbox array
+        """
+        stride = 2
+        cellsize = 12
+
+        #判断是否是脸
+        t_index = np.where(map>threshold)
+
+        # find nothing
+        if t_index[0].size == 0:
+            return np.array([])
+
+        dx1, dy1, dx2, dy2 = [reg[0, i, t_index[0], t_index[1]] for i in range(4)]
+
+        reg = np.array([dx1, dy1, dx2, dy2])
+        score = map[t_index[0], t_index[1]]
+        boundingbox = np.vstack([np.round((stride*t_index[1]+1)/scale),
+                                  np.round((stride*t_index[0]+1)/scale),
+                                  np.round((stride*t_index[1]+1+cellsize)/scale),
+                                  np.round((stride*t_index[0]+1+cellsize)/scale),
+                                  score,
+                                  reg])
+        return boundingbox.T
+
+
 
     def first_stage(self, img):
 
@@ -166,7 +245,7 @@ class MtcnnDetector(object):
             factor_count += 1
         
         # 开始检测
-        total_boxes = [detect_first_stage(img, self.PNet, ival, self.threshold[0]) for ival in scales]
+        total_boxes = [self.detect_first_stage(img, self.PNet, ival, self.threshold[0]) for ival in scales]
         
         # 尺寸过小时，可能没有检测结果 
         total_boxes = [ i for i in total_boxes if i is not None]
@@ -180,7 +259,7 @@ class MtcnnDetector(object):
             return None
 
         # 对位置进行去重叠
-        pick = nms(total_boxes[:, 0:5], 0.7, 'Union')
+        pick = self.nms(total_boxes[:, 0:5], 0.7, 'Union')
         total_boxes = total_boxes[pick]
 
         #获取box的width、height
@@ -222,7 +301,7 @@ class MtcnnDetector(object):
         for i in range(num_box):
             tmp = np.zeros((tmph[i], tmpw[i], 3), dtype=np.uint8)
             tmp[dy[i]:edy[i]+1, dx[i]:edx[i]+1, :] = img[y[i]:ey[i]+1, x[i]:ex[i]+1, :]
-            input_buf[i, :, :, :] = adjust_input(cv2.resize(tmp, (24, 24)))
+            input_buf[i, :, :, :] = self.adjust_input(cv2.resize(tmp, (24, 24)))
 
         #进行预测
         output = self.RNet.predict(input_buf)
@@ -240,7 +319,7 @@ class MtcnnDetector(object):
         reg = output[0][passed]
 
         # nms
-        pick = nms(total_boxes, 0.7, 'Union')
+        pick = self.nms(total_boxes, 0.7, 'Union')
         total_boxes = total_boxes[pick]
         total_boxes = self.calibrate_box(total_boxes, reg[pick])
         total_boxes = self.convert_to_square(total_boxes)
@@ -268,7 +347,7 @@ class MtcnnDetector(object):
         for i in range(num_box):
             tmp = np.zeros((tmph[i], tmpw[i], 3), dtype=np.float32)
             tmp[dy[i]:edy[i]+1, dx[i]:edx[i]+1, :] = img[y[i]:ey[i]+1, x[i]:ex[i]+1, :]
-            input_buf[i, :, :, :] = adjust_input(cv2.resize(tmp, (48, 48)))
+            input_buf[i, :, :, :] = self.adjust_input(cv2.resize(tmp, (48, 48)))
 
         output = self.ONet.predict(input_buf)
 
@@ -296,7 +375,7 @@ class MtcnnDetector(object):
 
         # nms
         total_boxes = self.calibrate_box(total_boxes, reg)
-        pick = nms(total_boxes, 0.7, 'Min')
+        pick = self.nms(total_boxes, 0.7, 'Min')
         total_boxes = total_boxes[pick]
         points = points[pick]
 
@@ -328,7 +407,7 @@ class MtcnnDetector(object):
             for j in range(num_box):
                 tmpim = np.zeros((tmpw[j], tmpw[j], 3), dtype=np.float32)
                 tmpim[dy[j]:edy[j]+1, dx[j]:edx[j]+1, :] = img[y[j]:ey[j]+1, x[j]:ex[j]+1, :]
-                input_buf[j, i*3:i*3+3, :, :] = adjust_input(cv2.resize(tmpim, (24, 24)))
+                input_buf[j, i*3:i*3+3, :, :] = self.adjust_input(cv2.resize(tmpim, (24, 24)))
 
         output = self.LNet.predict(input_buf)
 

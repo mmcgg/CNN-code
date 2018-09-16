@@ -8,9 +8,9 @@ import time
 
 if __name__ == '__main__':
 
-    detector = MtcnnDetector(model_folder='model', ctx=mx.cpu(0), accurate_landmark = False)
+    detector = MtcnnDetector(model_folder='model', ctx=mx.cpu(0))
 
-    img = cv2.imread('test2.jpg')
+    img = cv2.imread('oscar1.jpg')
     img2 = img.copy()
     img3 = img.copy()
     img4 = img.copy()

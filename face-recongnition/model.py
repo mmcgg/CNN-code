@@ -2,9 +2,19 @@
 
 import numpy as np
 
+
 class Detector(object):
 
     """Detector"""
+
+    def __init__(self):
+        pass
+        
+
+
+class DetectorMtcnn(Detector):
+
+    """DetectorMtcnn"""
 
     def __init__(self):
         pass
@@ -34,7 +44,7 @@ class Detector(object):
 
         return out_data
 
-    def nms(boxes, overlap_threshold, mode='Union'):
+    def nms(self, boxes, overlap_threshold, mode='Union'):
         """
             non max suppression 非极大抑制
             用于去除有重叠的box
