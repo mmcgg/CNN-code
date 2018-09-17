@@ -6,3 +6,4 @@ squeezeNet/tmp/*
 *.bmp
 *.dat
 *.jpg
+*.txt

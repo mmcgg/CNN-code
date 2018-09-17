@@ -6,7 +6,7 @@ import numpy as np
 import math
 import cv2
 from itertools import repeat
-from model import DetectorMtcnn
+from model_detector import DetectorMtcnn
 
 class MtcnnDetector(DetectorMtcnn):
     """
