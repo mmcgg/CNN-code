@@ -7,6 +7,8 @@ from keras.layers.pooling import MaxPooling2D
 from keras import backend as K
 from keras.layers.advanced_activations import PReLU
 
+import tensorflow as tf
+
 class FaceNet(object):
 
     """FaceNet"""
@@ -15,100 +17,102 @@ class FaceNet(object):
         self.net_radio = None
 
     def cal_mask(self, label_true, _type='face'):
+        """ 针对不同的任务过滤对应的数据"""
 
         def true_func():
-            return 0
-
-        def false_func():
             return 1
 
-        label_true_int32 = K.cast(label_true, dtype=K.int32)
+        def false_func():
+            return 0
+
+        label_true_float32 = K.cast(label_true, dtype=tf.int32)
         if _type == 'face':
-            label_filtered = K.map_fn(lambda x: K.cond(K.equal(x[0], x[1]), true_func, false_func), label_true_int32)
+            label_filtered = K.map_fn(lambda x: tf.cond(tf.logical_or(tf.equal(x[0], 0), tf.equal(x[0], 1)), true_func, false_func), label_true_float32)
         elif _type == 'bbox':
-            label_filtered = K.map_fn(lambda x: K.cond(K.equal(x[0], 1), true_func, false_func), label_true_int32)
+            label_filtered = K.map_fn(lambda x: tf.cond(tf.logical_or(tf.equal(x[0], -1), tf.equal(x[0], 1)), true_func, false_func), label_true_float32)
         elif _type == 'landmark':
-            label_filtered = K.map_fn(lambda x: K.cond(K.logical_and(K.equal(x[0], 1), K.equal(x[1], 1)),
-                                                         false_func, true_func), label_true_int32)
+            label_filtered = K.map_fn(lambda x: tf.cond(tf.equal(x[0], -2), true_func, false_func), label_true_float32)
         else:
             raise ValueError('Unknown type of: {} while calculate mask'.format(_type))
 
-        mask = K.cast(label_filtered, dtype=K.int32)
+        mask = K.cast(label_filtered, dtype=tf.int32)
         return mask
 
     def loss_face(self, label_true, label_pred):
 
-        label_int = self.cal_mask(label_true, 'face')
+        mask = self.cal_mask(label_true, 'face')
 
-        num_cls_prob = K.size(label_pred)
-        print('num_cls_prob: ', num_cls_prob)
-        cls_prob_reshape = K.reshape(label_pred, [num_cls_prob, -1])
-        print('label_pred shape: ', K.shape(label_pred))
-        num_row = K.shape(label_pred)[0]
-        num_row = K.to_int32(num_row)
-        row = K.range(num_row) * 2
-        indices_ = row + label_int
-        label_prob = K.squeeze(K.gather(cls_prob_reshape, indices_))
-        loss = -K.log(label_prob + 1e-10)
+        label_true1 = tf.boolean_mask(label_true, mask, axis=0)
+        label_pred1 = tf.boolean_mask(label_pred, mask, axis=0)
 
-        valid_inds = cal_mask(label_true, 'face')
-        num_valid = K.reduce_sum(valid_inds)
+        loss = label_true1*(-K.log(label_pred1+1e-10)) + (1-label_true1)*(-K.log(1-label_pred1+1e-10))
 
-        keep_num = K.cast(K.cast(num_valid, dtype=K.float32) * num_keep_radio, dtype=K.int32)
-        # set 0 to invalid sample
-        loss = loss * K.cast(valid_inds, dtype=K.float32)
-        loss, _ = K.nn.top_k(loss, k=keep_num)
-        return K.reduce_mean(loss)
+        return tf.reduce_mean(loss)
 
     def loss_box(self, label_true, bbox_true, bbox_pred):
 
         mask = self.cal_mask(label_true, 'bbox')
-        num = K.reduce_sum(mask)
-        keep_num = K.cast(num, dtype=K.int32)
 
-        bbox_true1 = K.boolean_mask(bbox_true, mask, axis=0)
-        bbox_pred1 = K.boolean_mask(bbox_pred, mask, axis=0)
+        bbox_true1 = tf.boolean_mask(bbox_true, mask, axis=0)
+        bbox_pred1 = tf.boolean_mask(bbox_pred, mask, axis=0)
 
         square_error = K.square(bbox_pred1 - bbox_true1)
-        square_error = K.reduce_sum(square_error, axis=1)
+        square_error = tf.reduce_sum(square_error, axis=1)
 
-        _, k_index = K.nn.top_k(square_error, k=keep_num)
-        square_error = K.gather(square_error, k_index)
+        return tf.reduce_mean(square_error)
 
-        return K.reduce_mean(square_error)
-
-    def loss_landmark(self, landmark_pred, landmark_target, label):
+    def loss_landmark(self, label_true, landmark_true, landmark_pred):
 
         mask = self.cal_mask(label_true, 'landmark')
-        num = K.reduce_sum(mask)
-        keep_num = K.cast(num, dtype=K.int32)
 
-        landmark_true1 = K.boolean_mask(landmark_true, mask)
-        landmark_pred1 = K.boolean_mask(landmark_pred, mask)
+        landmark_true1 = tf.boolean_mask(landmark_true, mask)
+        landmark_pred1 = tf.boolean_mask(landmark_pred, mask)
 
         square_error = K.square(landmark_pred1 - landmark_true1)
-        square_error = K.reduce_sum(square_error, axis=1)
+        square_error = tf.reduce_sum(square_error, axis=1)
 
-        _, k_index = K.nn.top_k(square_error, k=keep_num)
-        square_error = K.gather(square_error, k_index)
+        return tf.reduce_mean(square_error)
 
-        return K.reduce_mean(square_error)
+    def loss_func(self, y_true, y_pred):
 
-    def loss_func(y_true, y_pred):
+        """ 损失函数 """
+        """ 
+            y_true 有15列 (1+4+10)
+            y_pred 有16列（2+4+10）
+        """
 
-        labels_true = y_true[:, :2]
-        bbox_true = y_true[:, 2:6]
-        landmark_true = y_true[:, 6:]
+        face_true = y_true[:, :1]
+        box_true = y_true[:, 1:5]
+        landmark_true = y_true[:, 5:]
 
-        labels_pred = y_pred[:, :2]
-        bbox_pred = y_pred[:, 2:6]
+        face_pred = y_pred[:, :1]
+        box_pred = y_pred[:, 2:6]
         landmark_pred = y_pred[:, 6:]
 
-        face_loss = self.loss_face(labels_true, labels_pred)
-        box_loss = self.loss_box(labels_true, bbox_true, bbox_pred)
-        landmark_loss = self.loss_landmark(labels_true, landmark_true, landmark_pred)
+        face_loss = self.loss_face(face_true, face_pred)
+        box_loss = self.loss_box(face_true, box_true, box_pred)
+        landmark_loss = self.loss_landmark(face_true, landmark_true, landmark_pred)
 
-        return label_loss*self.net_radio[0] + bbox_loss*self.net_radio [1]+ landmark_loss*self.net_radio[2]
+        return face_loss*self.net_radio[0] + box_loss*self.net_radio[1] + landmark_loss*self.net_radio[2]
+
+    def accuracy(self, y_true, y_pred, threshold=0.6):
+
+        mask = self.cal_mask(y_true, 'face')
+
+        y_true1 = tf.boolean_mask(y_true, mask, axis=0)
+        y_pred1 = tf.boolean_mask(y_pred, mask, axis=0)
+
+        def true_func():
+            return 1
+
+        def false_func():
+            return 0
+
+        y_pred1 = K.map_fn(lambda x: tf.cond(x[0] >= threshold, true_func, false_func), y_pred1)
+        acc = K.map_fn(lambda x: tf.cond(tf.equal(x[0], 0), true_func, false_func), y_true1 - y_pred1)
+
+        return tf.reduce_mean(acc)
+
 
 class Pnet(FaceNet):
 

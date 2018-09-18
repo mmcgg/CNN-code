@@ -1,4 +1,8 @@
+# -*- coding: utf-8 -*-
+
 import numpy as np
+import cv2
+import h5py
 
 def IoU(box, boxes):
     """Compute IoU between detect box and gt boxes
@@ -55,3 +59,23 @@ def convert_to_square(bbox):
     square_bbox[:, 3] = square_bbox[:, 1] + max_side - 1
 
     return square_bbox
+
+def resize(im, target_size):
+    h, w, ch = im.shape
+    if h != target_size or w != target_size:
+        im = cv2.resize(im, (target_size, target_size))
+    return im
+
+#h5文件不能存放字典、NONE，可以用pkl
+def save_dict_to_hdf5(dic, filename):
+    with h5py.File(filename, 'w') as h5file:
+        recursively_save_dict_contents_to_group(h5file, '/', dic)
+
+def recursively_save_dict_contents_to_group(h5file, path, dic):
+    for key, item in dic.items():
+        if isinstance(item, (np.ndarray, np.int64, np.float64, str, bytes, list, tuple)):
+            h5file[path + key] = item
+        elif isinstance(item, dict):
+            recursively_save_dict_contents_to_group(h5file, path + key + '/', item)
+        else:
+            raise ValueError('Cannot save %s type' % type(item))

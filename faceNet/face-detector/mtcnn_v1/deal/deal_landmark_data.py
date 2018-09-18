@@ -1,4 +1,5 @@
 # coding: utf-8
+
 import os
 import cv2
 import numpy as np
@@ -8,9 +9,13 @@ import numpy.random as npr
 
 from utils import IoU
 from BBox_utils import getDataFromTxt, processImage, shuffle_in_unison_scary, BBox
+from Landmark_utils import show_landmark,rotate,flip
 
-rawdata = '../data/rawdata/'
-dealdata = '../data/dealdata/'
+
+filepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+rawdata = filepath + '/data/rawdata/'
+dealdata = filepath + '/data/dealdata/'
 
 dstdir = dealdata + "12/train_PNet_landmark_aug"
 OUTPUT = dealdata + '12'
@@ -22,9 +27,9 @@ def main():
 
     if not os.path.exists(OUTPUT):
         os.mkdir(OUTPUT)
-    if not exists(dstdir):
+    if not os.path.exists(dstdir):
         os.mkdir(dstdir)
-    assert(exists(dstdir) and exists(OUTPUT))
+    assert(os.path.exists(dstdir) and os.path.exists(OUTPUT))
 
     imgs, landmarks = GenerateData(train_txt, OUTPUT, net, argument=True)
 
@@ -40,7 +45,7 @@ def GenerateData(ftxt, output, net, argument=False):
         print('Net type error')
         return
     image_id = 0
-    f = open(join(OUTPUT,"landmark_%s_aug.txt" %(size)),'w')
+    f = open(os.path.join(OUTPUT,"landmark_%s_aug.txt" %(size)),'w')
    
     data = getDataFromTxt(ftxt)
     idx = 0
@@ -56,7 +61,8 @@ def GenerateData(ftxt, output, net, argument=False):
         f_face = img[bbox.top:bbox.bottom+1,bbox.left:bbox.right+1]
         f_face = cv2.resize(f_face,(size,size))
         landmark = np.zeros((5, 2))
-        #normalize
+
+        #标准化，得到的是在方框里的相对位置
         for index, one in enumerate(landmarkGt):
             rv = ((one[0]-gt_box[0])/(gt_box[2]-gt_box[0]), (one[1]-gt_box[1])/(gt_box[3]-gt_box[1]))
             landmark[index] = rv
@@ -142,7 +148,6 @@ def GenerateData(ftxt, output, net, argument=False):
                     
             F_imgs, F_landmarks = np.asarray(F_imgs), np.asarray(F_landmarks)
             for i in range(len(F_imgs)):
-                print(image_id)
 
                 if np.sum(np.where(F_landmarks[i] <= 0, 1, 0)) > 0:
                     continue
@@ -150,9 +155,9 @@ def GenerateData(ftxt, output, net, argument=False):
                 if np.sum(np.where(F_landmarks[i] >= 1, 1, 0)) > 0:
                     continue
 
-                cv2.imwrite(join(dstdir,"%d.jpg" %(image_id)), F_imgs[i])
+                cv2.imwrite(os.path.join(dstdir,"%d.jpg" %(image_id)), F_imgs[i])
                 landmarks = map(str,list(F_landmarks[i]))
-                f.write(join(dstdir,"%d.jpg" %(image_id))+" -2 "+" ".join(landmarks)+"\n")
+                f.write(os.path.join('12/train_PNet_landmark_aug',"%d.jpg" %(image_id))+" -2 "+" ".join(landmarks)+"\n")
                 image_id = image_id + 1
     
     f.close()

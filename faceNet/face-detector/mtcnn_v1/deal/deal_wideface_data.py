@@ -1,4 +1,4 @@
-# coding:utf-8
+# -*- coding: utf-8 -*-
 
 import numpy.random as npr
 import numpy as np
@@ -20,7 +20,7 @@ pos_save_dir = dealdata + "12/positive"
 part_save_dir = dealdata + "12/part"
 neg_save_dir = dealdata + '12/negative'
 
-NEGNUM = 50
+NEGNUM = 40
 
 def main():
 
