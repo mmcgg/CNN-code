@@ -15,6 +15,7 @@ class FaceNet(object):
 
     def __init__(self):
         self.net_radio = None
+        self.num_keep_radio = 0
 
     def cal_mask(self, label_true, _type='face'):
         """ 针对不同的任务过滤对应的数据"""
@@ -40,18 +41,30 @@ class FaceNet(object):
 
     def loss_face(self, label_true, label_pred):
 
+        """ 
+            是否有人脸的loss 对数loss 
+            在每个mini-batch中选取前70%的top loss作为困难样本，只利用这部分计算梯度
+        """
+
         mask = self.cal_mask(label_true, 'face')
+        num = tf.reduce_sum(mask)*self.num_keep_radio
+        keep_num = tf.cast(num, dtype=tf.int32)
 
         label_true1 = tf.boolean_mask(label_true, mask, axis=0)
         label_pred1 = tf.boolean_mask(label_pred, mask, axis=0)
 
-        loss = label_true1*(-K.log(label_pred1+1e-10)) + (1-label_true1)*(-K.log(1-label_pred1+1e-10))
+        loss = label_true1*(-K.log(label_pred1+1e-10)) + (1-label_true1)*(1-K.log(label_pred1+1e-10))
+
+        _, k_index = tf.nn.top_k(loss, k=keep_num)
+        loss = tf.gather(loss, k_index)
 
         return tf.reduce_mean(loss)
 
     def loss_box(self, label_true, bbox_true, bbox_pred):
 
         mask = self.cal_mask(label_true, 'bbox')
+        num = tf.reduce_sum(mask)*self.num_keep_radio
+        keep_num = tf.cast(num, dtype=tf.int32)
 
         bbox_true1 = tf.boolean_mask(bbox_true, mask, axis=0)
         bbox_pred1 = tf.boolean_mask(bbox_pred, mask, axis=0)
@@ -59,17 +72,25 @@ class FaceNet(object):
         square_error = K.square(bbox_pred1 - bbox_true1)
         square_error = tf.reduce_sum(square_error, axis=1)
 
+        _, k_index = tf.nn.top_k(square_error, k=keep_num)
+        square_error = tf.gather(square_error, k_index)
+
         return tf.reduce_mean(square_error)
 
     def loss_landmark(self, label_true, landmark_true, landmark_pred):
 
         mask = self.cal_mask(label_true, 'landmark')
+        num = tf.reduce_sum(mask)*self.num_keep_radio
+        keep_num = tf.cast(num, dtype=tf.int32)
 
         landmark_true1 = tf.boolean_mask(landmark_true, mask)
         landmark_pred1 = tf.boolean_mask(landmark_pred, mask)
 
         square_error = K.square(landmark_pred1 - landmark_true1)
         square_error = tf.reduce_sum(square_error, axis=1)
+
+        _, k_index = tf.nn.top_k(square_error, k=keep_num)
+        square_error = tf.gather(square_error, k_index)
 
         return tf.reduce_mean(square_error)
 
@@ -120,6 +141,7 @@ class Pnet(FaceNet):
 
     def __init__(self):
         self.net_radio = [1, 0.5, 0.5]
+        self.num_keep_radio = 0.7
 
     def model(self, training=False):
 
