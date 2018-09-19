@@ -6,6 +6,7 @@ from keras.layers.convolutional import Convolution2D
 from keras.layers.pooling import MaxPooling2D
 from keras import backend as K
 from keras.layers.advanced_activations import PReLU
+from keras.metrics import binary_accuracy
 
 import tensorflow as tf
 
@@ -15,7 +16,8 @@ class FaceNet(object):
 
     def __init__(self):
         self.net_radio = None
-        self.num_keep_radio = 0
+        self.num_keep_radio = None
+        self.threshold = None
 
     def cal_mask(self, label_true, _type='face'):
         """ 针对不同的任务过滤对应的数据"""
@@ -47,14 +49,16 @@ class FaceNet(object):
         """
 
         mask = self.cal_mask(label_true, 'face')
-        num = tf.reduce_sum(mask)*self.num_keep_radio
+        num = tf.cast(tf.reduce_sum(mask), dtype=tf.float32) * self.num_keep_radio
         keep_num = tf.cast(num, dtype=tf.int32)
 
         label_true1 = tf.boolean_mask(label_true, mask, axis=0)
         label_pred1 = tf.boolean_mask(label_pred, mask, axis=0)
 
-        loss = label_true1*(-K.log(label_pred1+1e-10)) + (1-label_true1)*(1-K.log(label_pred1+1e-10))
+        label_true1 = tf.reshape(label_true1, [-1])
+        label_pred1 = tf.reshape(label_pred1, [-1])
 
+        loss = -(label_true1*(tf.log(label_pred1+1e-10)) + (1-label_true1)*(1-tf.log(label_pred1+1e-10)))
         _, k_index = tf.nn.top_k(loss, k=keep_num)
         loss = tf.gather(loss, k_index)
 
@@ -63,7 +67,7 @@ class FaceNet(object):
     def loss_box(self, label_true, bbox_true, bbox_pred):
 
         mask = self.cal_mask(label_true, 'bbox')
-        num = tf.reduce_sum(mask)*self.num_keep_radio
+        num = tf.cast(tf.reduce_sum(mask), dtype=tf.float32) * self.num_keep_radio
         keep_num = tf.cast(num, dtype=tf.int32)
 
         bbox_true1 = tf.boolean_mask(bbox_true, mask, axis=0)
@@ -80,7 +84,7 @@ class FaceNet(object):
     def loss_landmark(self, label_true, landmark_true, landmark_pred):
 
         mask = self.cal_mask(label_true, 'landmark')
-        num = tf.reduce_sum(mask)*self.num_keep_radio
+        num = tf.cast(tf.reduce_sum(mask), dtype=tf.float32) * self.num_keep_radio
         keep_num = tf.cast(num, dtype=tf.int32)
 
         landmark_true1 = tf.boolean_mask(landmark_true, mask)
@@ -106,7 +110,7 @@ class FaceNet(object):
         box_true = y_true[:, 1:5]
         landmark_true = y_true[:, 5:]
 
-        face_pred = y_pred[:, :1]
+        face_pred = y_pred[:, 1:2]
         box_pred = y_pred[:, 2:6]
         landmark_pred = y_pred[:, 6:]
 
@@ -116,24 +120,69 @@ class FaceNet(object):
 
         return face_loss*self.net_radio[0] + box_loss*self.net_radio[1] + landmark_loss*self.net_radio[2]
 
-    def accuracy(self, y_true, y_pred, threshold=0.6):
+    def accuracy(self, y_true, y_pred):
 
-        mask = self.cal_mask(y_true, 'face')
+        face_true = y_true[:, :1]
+        face_pred = y_pred[:, 1:2]
 
-        y_true1 = tf.boolean_mask(y_true, mask, axis=0)
-        y_pred1 = tf.boolean_mask(y_pred, mask, axis=0)
+        mask = self.cal_mask(face_true, 'face')
+
+        face_true = tf.boolean_mask(face_true, mask, axis=0)
+        face_pred = tf.boolean_mask(face_pred, mask, axis=0)
+
+        face_true = tf.reshape(face_true, [-1])
+        face_pred = tf.reshape(face_pred, [-1])
 
         def true_func():
-            return 1
+            return 100
 
         def false_func():
             return 0
 
-        y_pred1 = K.map_fn(lambda x: tf.cond(x[0] >= threshold, true_func, false_func), y_pred1)
-        acc = K.map_fn(lambda x: tf.cond(tf.equal(x[0], 0), true_func, false_func), y_true1 - y_pred1)
+        face_true = tf.cast(face_true*100, dtype=tf.int32)
+        face_pred = tf.cast(face_pred*100, dtype=tf.int32)
+
+        face_pred = tf.map_fn(lambda x: tf.cond(x >= int(self.threshold*100), true_func, false_func), face_pred, dtype=tf.int32)
+        acc = tf.map_fn(lambda x: tf.cond(tf.equal(x, 0), true_func, false_func), tf.subtract(face_true, face_pred), dtype=tf.int32)
+        acc =  tf.cast(acc/100, dtype=tf.float32)
 
         return tf.reduce_mean(acc)
 
+
+    def recall(self, y_true, y_pred):
+
+        face_true = y_true[:, :1]
+        face_pred = y_pred[:, 1:2]
+
+        mask = self.cal_mask(face_true, 'face')
+
+        face_true = tf.boolean_mask(face_true, mask, axis=0)
+        face_pred = tf.boolean_mask(face_pred, mask, axis=0)
+
+        face_true = tf.reshape(face_true, [-1])
+        face_pred = tf.reshape(face_pred, [-1])
+
+        def true_func():
+            return 100
+
+        def false_func():
+            return 0
+
+        face_true = tf.cast(face_true*100, dtype=tf.int32)
+        face_pred = tf.cast(face_pred*100, dtype=tf.int32)
+
+        #recall
+        mask =  tf.cast(face_true/100, dtype=tf.int32)
+
+        trueNum = tf.cast(tf.reduce_sum(mask), dtype=tf.int32)
+        face_pred = tf.boolean_mask(face_pred, mask, axis=0)
+
+        predNum = tf.map_fn(lambda x: tf.cond(x >= int(self.threshold*100), true_func, false_func), face_pred, dtype=tf.int32)
+        predNum = tf.cast(tf.reduce_sum(predNum)/100, dtype=tf.int32)
+
+        recallv = tf.cast(predNum/trueNum, dtype=tf.float32)
+
+        return recallv
 
 class Pnet(FaceNet):
 
@@ -142,6 +191,7 @@ class Pnet(FaceNet):
     def __init__(self):
         self.net_radio = [1, 0.5, 0.5]
         self.num_keep_radio = 0.7
+        self.threshold = 0.6
 
     def model(self, training=False):
 
@@ -175,6 +225,8 @@ class Rnet(FaceNet):
 
     def __init__(self):
         self.net_radio = [1, 0.5, 0.5]
+        self.num_keep_radio = 0.7
+        self.threshold = 0.7
 
     def model(self, training=False):
 
@@ -214,6 +266,8 @@ class Onet(FaceNet):
 
     def __init__(self):
         self.net_radio = [1, 0.5, 1]
+        self.num_keep_radio = 0.7
+        self.threshold = 0.8
 
     def model(self, training=False):
 

@@ -5,39 +5,48 @@ import random
 import cv2
 import numpy as np
 
+from utils import resize, save_dict_to_hdf5
+
 filepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 dealdata = filepath + '/data/dealdata/'
 traindata = filepath + '/data/traindata/'
 
-posh5 = traindata + 'pos_shuffle.h5'
-negh5 = traindata + 'neg_shuffle.h5'
-parth5 = traindata + 'part_shuffle.h5'
-landmarksh5 = traindata + 'landmarks_shuffle.h5'
+net = "ONet"
 
-target_size = 12
+posh5 = traindata + 'pos_shuffle_%s.h5' %(net)
+negh5 = traindata + 'neg_shuffle_%s.h5' %(net)
+parth5 = traindata + 'part_shuffle_%s.h5' %(net)
+landmarksh5 = traindata + 'landmarks_shuffle_%s.h5' %(net)
 
-from utils import resize, save_dict_to_hdf5
+def main():
 
+    if net == "PNet":
+        size = 12
+    elif net == "RNet":
+        size = 24
+    elif net == "ONet":
+        size = 48
+    else:
+        print('Net type error')
+        return
 
-def main(net='12'):
+    net_data_dir = os.path.join(dealdata, '12')
+    landmark_data_dir = os.path.join(dealdata, str(size))
 
-    net_data_dir = os.path.join(dealdata, net)
-    save_data_dir = os.path.join(traindata, net)
-
-    with open('%s/pos_%s.txt' % (net_data_dir, net), 'r') as f:
+    with open('%s/pos_%s.txt' % (net_data_dir, '12'), 'r') as f:
         pos = f.readlines()
-    with open('%s/neg_%s.txt' % (net_data_dir, net), 'r') as f:
+    with open('%s/neg_%s.txt' % (net_data_dir, '12'), 'r') as f:
         neg = f.readlines()
-    with open('%s/part_%s.txt' % (net_data_dir, net), 'r') as f:
+    with open('%s/part_%s.txt' % (net_data_dir, '12'), 'r') as f:
         part = f.readlines()
-    with open('%s/landmark_%s_aug.txt' % (net_data_dir, net), 'r') as f:
+    with open('%s/landmark_%s_aug.txt' % (landmark_data_dir, size), 'r') as f:
         landmark_anno = f.readlines()
 
-    create_pos_dataset(pos, target_size, posh5)
-    create_neg_dataset(neg, target_size, negh5)
-    create_part_dataset(part, target_size, parth5)
-    create_landmark_dataset(landmark_anno, target_size, landmarksh5)
+    create_pos_dataset(pos, size, posh5)
+    create_neg_dataset(neg, size, negh5)
+    create_part_dataset(part, size, parth5)
+    create_landmark_dataset(landmark_anno, size, landmarksh5)
 
 def create_pos_dataset(pos, target_size, out_dir):
 

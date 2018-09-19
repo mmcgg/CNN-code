@@ -17,10 +17,10 @@ filepath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 rawdata = filepath + '/data/rawdata/'
 dealdata = filepath + '/data/dealdata/'
 
-dstdir = dealdata + "12/train_PNet_landmark_aug"
-OUTPUT = dealdata + '12'
+dstdir = dealdata + "48/train_ONet_landmark_aug"
+OUTPUT = dealdata + '48'
 
-net = "PNet"
+net = "ONet"
 train_txt = rawdata + "trainImageList.txt"
 
 def main():
